@@ -1,25 +1,22 @@
-version: "3.9"
-
 services:
   app:
     build:
       context: .
       dockerfile: Dockerfile
     image: yt-app:1.0.0
-    container_name: yt-app
     restart: unless-stopped
     ports:
       - "5000:5000"
     environment:
       NODE_ENV: production
       PORT: 5000
-      MONGO_URI: mongodb://mongo:27017/yt
-      CLIENT_ORIGIN: http://localhost:5000
+      MONGODB_URI: mongodb://mongo:27017/yt
+      CORS_ORIGIN: http://localhost:5000
     depends_on:
       mongo:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "node", "-e", "require('http').get('http://localhost:5000/api/health', r => process.exit(r.statusCode === 200 ? 0 : 1)).on('error', () => process.exit(1))"]
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:5000/api/health', r => process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))"]
       interval: 30s
       timeout: 5s
       retries: 3
@@ -27,15 +24,14 @@ services:
 
   mongo:
     image: mongo:7.0.12
-    container_name: yt-mongo
     restart: unless-stopped
     ports:
       - "27017:27017"
     volumes:
       - mongo-data:/data/db
     healthcheck:
-      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
-      interval: 10s
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping')"]
+      interval: 15s
       timeout: 5s
       retries: 5
       start_period: 10s

@@ -1,58 +1,57 @@
-# Deploy Guide (Vercel) — under 5 minutes
+# Deploy Guide (under 5 minutes)
 
-This project deploys as:
-- **Frontend** (`client/`) → static build served by Vercel
-- **Backend** (`server/`) → Vercel Serverless Function via `api/index.js`
+This app deploys to **Vercel** (client + API as serverless functions).
+MongoDB runs on **MongoDB Atlas** (free tier) since Vercel has no persistent storage.
 
 ## Prerequisites
-- Node.js >= 18 installed locally
+- Node.js 18+ installed
 - A [Vercel](https://vercel.com) account
-- A MongoDB connection string (free tier: [MongoDB Atlas](https://www.mongodb.com/atlas))
+- A [MongoDB Atlas](https://www.mongodb.com/cloud/atlas/register) cluster (free tier is fine)
 
-## 1. Install the Vercel CLI
+## 1. Get your MongoDB connection string
+1. Create a free cluster on Atlas.
+2. Add a database user + password.
+3. Network Access → Allow access from anywhere (`0.0.0.0/0`).
+4. Copy the connection string, e.g.:
+   `mongodb+srv://user:pass@cluster0.mongodb.net/yt?retryWrites=true&w=majority`
+
+## 2. Configure environment variables locally
 ```bash
-npm install -g vercel@37.4.0
+cp .env.example .env
+# edit .env and set MONGODB_URI to your Atlas string
 ```
 
-## 2. Login and link the project
+## 3. Install the Vercel CLI and deploy
 ```bash
+npm install -g vercel@34.3.0
 vercel login
+```
+
+## 4. Link and deploy (3 commands)
+```bash
 vercel link
-```
-Follow the prompts (accept defaults). This creates a `.vercel` folder locally.
-
-## 3. Set environment variables
-```bash
-vercel env add MONGO_URI production
-vercel env add CLIENT_ORIGIN production
-```
-Paste your MongoDB Atlas URI and your production frontend URL (e.g. `https://your-app.vercel.app`) when prompted.
-
-## 4. Deploy
-```bash
+vercel env add MONGODB_URI production   # paste your Atlas URI when prompted
 vercel --prod
 ```
 
-That's it — Vercel will run `npm run vercel-build`, output the client build to `client/dist`, and deploy `api/index.js` as a serverless function. Your API will be available at `/api/*` and health check at `/api/health`.
+That's it — Vercel builds the client (`npm run build`) and deploys `api/index.js`
+as a serverless function, routed via `vercel.json`.
 
-## Optional: Automated CI/CD (GitHub Actions)
-1. Get these values:
-   - `vercel whoami` → confirms login
-   - Run `vercel link` once, then check `.vercel/project.json` for `orgId` and `projectId`
-   - Create a token at https://vercel.com/account/tokens
-2. Add these as GitHub repo secrets:
+## 5. (Optional) Enable auto-deploy from GitHub Actions
+1. In your Vercel project settings, grab: **Project ID**, **Org ID**, and create a **Vercel Token** (Account Settings → Tokens).
+2. Add them as GitHub repo secrets:
    - `VERCEL_TOKEN`
    - `VERCEL_ORG_ID`
    - `VERCEL_PROJECT_ID`
-3. Push to `main` — GitHub Actions will build, test, and deploy automatically.
+3. Push to `main` — the workflow in `.github/workflows/deploy.yml` builds, tests, and deploys automatically.
 
-## Local development (optional, via Docker)
+## Verify it worked
+```bash
+curl https://<your-app>.vercel.app/api/health
+# Expect: {"status":"ok","db":"connected",...}
+```
+
+## Local development with Docker (alternative, non-Vercel)
 ```bash
 docker compose up --build
-```
-Server available at `http://localhost:5000/api/health`.
-
-## Troubleshooting
-- **DB not connecting**: verify `MONGO_URI` is set in Vercel → Project → Settings → Environment Variables, and that your Atlas cluster allows access from `0.0.0.0/0` (or Vercel's IP ranges).
-- **CORS errors**: ensure `CLIENT_ORIGIN` matches your deployed frontend URL exactly (no trailing slash).
-- **404 on API routes**: confirm `vercel.json` rewrites are present and `api/index.js` exists.
+curl http://localhost:5000/api/health

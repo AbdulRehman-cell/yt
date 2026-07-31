@@ -1,7 +1,9 @@
-// Vercel Serverless entry point.
-// Wraps the existing Express app (server/index.js) so it runs as a serverless function.
-// Requires server/index.js to export the Express `app` instance (see server/index.js below).
+// Vercel serverless entry point.
+// Wraps the existing Express app (server/) so it runs as a single
+// serverless function. All /api/* traffic is routed here by vercel.json.
 
-const app = require("../server/index.js");
+const app = require('../server/app');
 
-module.exports = app;
+// Vercel expects a (req, res) handler, not app.listen().
+// server/app.js must export the configured Express app WITHOUT calling .listen().
+module.exports = (req, res) => app(req, res);
