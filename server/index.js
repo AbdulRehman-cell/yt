@@ -1,34 +1,85 @@
-require('dotenv').config()
-const path = require('path')
-const express = require('express')
-const cors = require('cors')
-const mongoose = require('mongoose')
+require("dotenv").config();
 
-const app = express()
-app.use(cors())
-app.use(express.json())
+const express = require("express");
+const cors = require("cors");
+const mongoose = require("mongoose");
 
-app.use('/api/users', require('./routes/user.routes'))
-app.use('/api/messages', require('./routes/message.routes'))
+const app = express();
 
-// Serve the built React client
-const dist = path.join(__dirname, '..', 'client', 'dist')
-app.use(express.static(dist))
-app.get('*', function (req, res, next) {
-  if (req.path.indexOf('/api/') === 0) return next() // unknown API route -> real 404, not index.html
-  res.sendFile(path.join(dist, 'index.html'))
-})
+// ---- Config ----
+const PORT = process.env.PORT || 5000;
+const MONGO_URI = process.env.MONGO_URI;
+const CLIENT_ORIGIN = process.env.CLIENT_ORIGIN || "*";
+const NODE_ENV = process.env.NODE_ENV || "development";
 
-const PORT = process.env.PORT || 4000
-const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/yt'
-
-// Listen immediately — the site must load even while MongoDB connects
-// (or when no database is configured at all)
-app.listen(PORT, function () { console.log('Server + client on http://localhost:' + PORT) })
-
-mongoose.connect(MONGODB_URI, { serverSelectionTimeoutMS: 5000 })
-  .then(function () { console.log('MongoDB connected') })
-  .catch(function (err) {
-    console.error('MongoDB connection failed: ' + err.message)
-    console.error('The site works, but API routes will fail until MONGODB_URI points at a running MongoDB.')
+// ---- Middleware ----
+app.use(
+  cors({
+    origin: CLIENT_ORIGIN,
+    credentials: true,
   })
+);
+app.use(express.json({ limit: "1mb" }));
+
+// ---- DB Connection (cached for serverless cold starts) ----
+let isConnected = false;
+
+async function connectDB() {
+  if (isConnected) return;
+  if (!MONGO_URI) {
+    console.warn("MONGO_URI not set — skipping DB connection.");
+    return;
+  }
+  try {
+    await mongoose.connect(MONGO_URI, {
+      serverSelectionTimeoutMS: 5000,
+    });
+    isConnected = true;
+    console.log("MongoDB connected");
+  } catch (err) {
+    console.error("MongoDB connection error:", err.message);
+  }
+}
+
+app.use(async (req, res, next) => {
+  await connectDB();
+  next();
+});
+
+// ---- Health check (required for platform + uptime monitors) ----
+app.get("/api/health", (req, res) => {
+  res.status(200).json({
+    status: "ok",
+    env: NODE_ENV,
+    db: isConnected ? "connected" : "disconnected",
+    timestamp: new Date().toISOString(),
+  });
+});
+
+// ---- Example route ----
+app.get("/api", (req, res) => {
+  res.json({ message: "API is running" });
+});
+
+// ---- 404 handler ----
+app.use((req, res) => {
+  res.status(404).json({ error: "Not found" });
+});
+
+// ---- Error handler ----
+app.use((err, req, res, next) => {
+  console.error(err.stack);
+  res.status(500).json({ error: "Internal server error" });
+});
+
+// Export app for Vercel serverless function usage
+module.exports = app;
+
+// Run standalone server only when NOT on Vercel (e.g. local/dev/Docker)
+if (require.main === module) {
+  connectDB().finally(() => {
+    app.listen(PORT, () => {
+      console.log(`Server listening on port ${PORT} [${NODE_ENV}]`);
+    });
+  });
+}
