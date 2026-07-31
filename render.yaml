@@ -1,14 +1,11 @@
-# Render Blueprint — https://render.com/docs/blueprint-spec
-# Deploy with: connect repo in Render dashboard -> "New Blueprint Instance"
-
 services:
   - type: web
     name: yt-app
     runtime: docker
-    plan: starter
-    region: oregon
     dockerfilePath: ./Dockerfile
     dockerContext: .
+    plan: starter
+    region: oregon
     healthCheckPath: /api/health
     autoDeploy: true
     envVars:
@@ -20,5 +17,11 @@ services:
         sync: false
       - key: CLIENT_ORIGIN
         sync: false
-      - key: SESSION_SECRET
+      - key: JWT_SECRET
         generateValue: true
+
+databases:
+  - name: yt-mongo
+    plan: starter
+    databaseName: yt
+    ipAllowList: []

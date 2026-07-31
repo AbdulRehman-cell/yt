@@ -1,80 +1,82 @@
-# Deploy to Render in Under 5 Minutes
+# Deploy Guide — Render (under 5 minutes)
 
-This app is a Node/Express + MongoDB API that also serves the built client. It's deployed on **Render** using Docker.
+This app is a Node.js/Express API (`server/`) serving a built client (`client/`), using MongoDB via Mongoose. It deploys to **Render** using the included Dockerfile.
 
 ## Prerequisites
-
-- A [Render](https://render.com) account
-- A MongoDB connection string (use [MongoDB Atlas](https://www.mongodb.com/atlas) free tier, or Render's private networking to another Mongo host)
+- A [Render account](https://dashboard.render.com) (free to sign up)
 - This repo pushed to GitHub/GitLab
+- `git` installed locally
 
-## Option A — One-click via Blueprint (fastest)
+## Option A — One-click via render.yaml (recommended)
 
-1. Push this repo to GitHub (with `render.yaml` included).
-2. Go to Render Dashboard → **New** → **Blueprint**.
-3. Connect your repo. Render reads `render.yaml` automatically.
-4. When prompted, set the required env vars:
-   - `MONGO_URI` → your Atlas connection string
-   - `CLIENT_ORIGIN` → leave blank initially, update after first deploy with your Render URL
-5. Click **Apply** — Render builds the Docker image and deploys.
+1. Push your code:
+   ```bash
+   git add .
+   git commit -m "Add production deployment config"
+   git push origin main
+   ```
 
-**Commands (if using Render CLI instead of dashboard):**
+2. In the Render Dashboard: **New > Blueprint**, select this repository. Render will read `render.yaml` and provision:
+   - `yt-app` (Docker web service, health check on `/api/health`)
+   - `yt-mongo` (managed MongoDB database)
+
+3. Set the two required secret env vars when prompted (or after, under **Environment**):
+   - `MONGO_URI` → copy the internal connection string from the `yt-mongo` database page
+   - `CLIENT_ORIGIN` → your Render app URL, e.g. `https://yt-app.onrender.com`
+
+That's it — Render builds the Docker image and deploys. Visit the assigned `.onrender.com` URL.
+
+## Option B — Manual service creation (no Blueprint)
 
 ```bash
-# 1. Install Render CLI
-brew install render
+# 1. Push code to GitHub
+git push origin main
 
-# 2. Login
-render login
+# 2. Create the service (via dashboard): New > Web Service
+#    - Runtime: Docker
+#    - Dockerfile path: ./Dockerfile
+#    - Health check path: /api/health
 
-# 3. Deploy blueprint from repo root
-render blueprint launch
+# 3. Add env vars in the Render dashboard (Environment tab):
+#    NODE_ENV=production
+#    MONGO_URI=<your MongoDB Atlas or Render DB URI>
+#    JWT_SECRET=<openssl rand -hex 32>
+#    CLIENT_ORIGIN=https://<your-service>.onrender.com
 ```
 
-## Option B — Manual Web Service Setup
+Click **Create Web Service** — done.
 
-1. Render Dashboard → **New** → **Web Service**.
-2. Connect your repo, select branch `main`.
-3. Runtime: **Docker**. Root Directory: leave blank (uses repo root `Dockerfile`).
-4. Set **Health Check Path**: `/api/health`.
-5. Add environment variables under "Environment":
-   - `NODE_ENV=production`
-   - `PORT=10000`
-   - `MONGO_URI=<your-atlas-uri>`
-   - `CLIENT_ORIGIN=<your-render-service-url>`
-   - `SESSION_SECRET=<generate-a-random-string>`
-6. Click **Create Web Service**. First build takes ~2-4 minutes.
+## Enable auto-deploy from GitHub Actions (optional)
 
-## Enabling Auto-Deploy from GitHub Actions
+1. In Render: service **Settings > Deploy Hook** → copy the URL.
+2. In GitHub: repo **Settings > Secrets and variables > Actions** → add secret `RENDER_DEPLOY_HOOK_URL` with that value.
+3. Every push to `main` now runs tests, builds, then triggers a Render deploy automatically.
 
-1. In Render service → **Settings** → **Deploy Hook**, copy the URL.
-2. In GitHub repo → **Settings** → **Secrets and variables** → **Actions**, add:
-   - `RENDER_DEPLOY_HOOK_URL` = the copied URL
-3. Every push to `main` now runs tests, builds Docker, then triggers Render deploy.
-
-## Local Testing Before Deploy
+## Verify the deployment
 
 ```bash
-# 1. Copy env file and fill in values
-cp .env.example .env
+curl https://<your-service>.onrender.com/api/health
+# Expect: {"status":"ok"} (200)
+```
 
-# 2. Build and run with Docker Compose (includes local MongoDB)
+## Local test before deploying
+
+```bash
 docker compose up --build
-
-# 3. Verify health check
 curl http://localhost:10000/api/health
 ```
 
-## Verifying Production Deploy
+## Required env vars
 
-```bash
-curl https://<your-service-name>.onrender.com/api/health
-```
+| Variable | Required | Description |
+|---|---|---|
+| `MONGO_URI` | yes | MongoDB connection string |
+| `JWT_SECRET` | yes | Random secret for auth tokens |
+| `CLIENT_ORIGIN` | yes | Allowed CORS origin (your live URL) |
+| `PORT` | no | Defaults to 10000 on Render |
+| `VITE_API_BASE_URL` | no | Client build-time API URL |
 
-You should get a `200 OK` response. If it fails, check Render's **Logs** tab for the service.
-
-## Important Notes
-
-- Ensure `server/index.js` exposes a `GET /api/health` route returning `200` — required for health checks in both Docker and Render.
-- If your client uses client-side routing, ensure the server has a catch-all route serving `client/dist/index.html`.
-- Update `CLIENT_ORIGIN` after first deploy to match your live Render URL to avoid CORS errors.
+## Troubleshooting
+- **Build fails on client:** ensure `client/package.json` has a `build` script outputting to `client/dist`.
+- **Health check failing:** confirm `server/index.js` exposes `GET /api/health` returning HTTP 200.
+- **DB connection errors:** double check `MONGO_URI` matches the Render internal connection string format (`mongodb://user:pass@host:port/db`).
