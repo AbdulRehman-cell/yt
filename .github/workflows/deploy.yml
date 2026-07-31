@@ -1,4 +1,4 @@
-name: CI/CD
+name: CI/CD - Build, Test, Deploy to Render
 
 on:
   push:
@@ -6,49 +6,48 @@ on:
   pull_request:
     branches: [main]
 
+env:
+  NODE_VERSION: "20.11.1"
+
 jobs:
   build-and-test:
+    name: Build & Test
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        node-version: [20.15.1]
     steps:
-      - name: Checkout
+      - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Setup Node
+      - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: ${{ matrix.node-version }}
-          cache: 'npm'
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "npm"
 
-      - name: Install root deps
-        run: npm ci
+      - name: Install root dependencies
+        run: npm ci --no-audit --no-fund
 
-      - name: Install client deps
-        run: npm --prefix client ci
+      - name: Install client dependencies
+        run: npm --prefix client ci --no-audit --no-fund
+        continue-on-error: false
 
-      - name: Lint (if configured)
-        run: npm run lint --if-present
-
-      - name: Test (if configured)
+      - name: Run server tests (if present)
         run: npm test --if-present
+
+      - name: Run client tests (if present)
+        run: npm --prefix client test --if-present
 
       - name: Build client
         run: npm run build
 
+      - name: Build Docker image (validation only)
+        run: docker build -t yt-app:ci-${{ github.sha }} .
+
   deploy:
+    name: Deploy to Render
     needs: build-and-test
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Deploy to Vercel
-        uses: amondnet/vercel-action@v25.2.0
-        with:
-          vercel-token: ${{ secrets.VERCEL_TOKEN }}
-          vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}
-          vercel-project-id: ${{ secrets.VERCEL_PROJECT_ID }}
-          vercel-args: '--prod'
+      - name: Trigger Render Deploy Hook
+        run: |
+          curl -fsS -X POST "${{ secrets.RENDER_DEPLOY_HOOK_URL }}"

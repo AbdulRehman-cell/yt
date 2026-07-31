@@ -1,57 +1,80 @@
-# Deploy Guide (under 5 minutes)
+# Deploy to Render in Under 5 Minutes
 
-This app deploys to **Vercel** (client + API as serverless functions).
-MongoDB runs on **MongoDB Atlas** (free tier) since Vercel has no persistent storage.
+This app is a Node/Express + MongoDB API that also serves the built client. It's deployed on **Render** using Docker.
 
 ## Prerequisites
-- Node.js 18+ installed
-- A [Vercel](https://vercel.com) account
-- A [MongoDB Atlas](https://www.mongodb.com/cloud/atlas/register) cluster (free tier is fine)
 
-## 1. Get your MongoDB connection string
-1. Create a free cluster on Atlas.
-2. Add a database user + password.
-3. Network Access → Allow access from anywhere (`0.0.0.0/0`).
-4. Copy the connection string, e.g.:
-   `mongodb+srv://user:pass@cluster0.mongodb.net/yt?retryWrites=true&w=majority`
+- A [Render](https://render.com) account
+- A MongoDB connection string (use [MongoDB Atlas](https://www.mongodb.com/atlas) free tier, or Render's private networking to another Mongo host)
+- This repo pushed to GitHub/GitLab
 
-## 2. Configure environment variables locally
+## Option A — One-click via Blueprint (fastest)
+
+1. Push this repo to GitHub (with `render.yaml` included).
+2. Go to Render Dashboard → **New** → **Blueprint**.
+3. Connect your repo. Render reads `render.yaml` automatically.
+4. When prompted, set the required env vars:
+   - `MONGO_URI` → your Atlas connection string
+   - `CLIENT_ORIGIN` → leave blank initially, update after first deploy with your Render URL
+5. Click **Apply** — Render builds the Docker image and deploys.
+
+**Commands (if using Render CLI instead of dashboard):**
+
 ```bash
+# 1. Install Render CLI
+brew install render
+
+# 2. Login
+render login
+
+# 3. Deploy blueprint from repo root
+render blueprint launch
+```
+
+## Option B — Manual Web Service Setup
+
+1. Render Dashboard → **New** → **Web Service**.
+2. Connect your repo, select branch `main`.
+3. Runtime: **Docker**. Root Directory: leave blank (uses repo root `Dockerfile`).
+4. Set **Health Check Path**: `/api/health`.
+5. Add environment variables under "Environment":
+   - `NODE_ENV=production`
+   - `PORT=10000`
+   - `MONGO_URI=<your-atlas-uri>`
+   - `CLIENT_ORIGIN=<your-render-service-url>`
+   - `SESSION_SECRET=<generate-a-random-string>`
+6. Click **Create Web Service**. First build takes ~2-4 minutes.
+
+## Enabling Auto-Deploy from GitHub Actions
+
+1. In Render service → **Settings** → **Deploy Hook**, copy the URL.
+2. In GitHub repo → **Settings** → **Secrets and variables** → **Actions**, add:
+   - `RENDER_DEPLOY_HOOK_URL` = the copied URL
+3. Every push to `main` now runs tests, builds Docker, then triggers Render deploy.
+
+## Local Testing Before Deploy
+
+```bash
+# 1. Copy env file and fill in values
 cp .env.example .env
-# edit .env and set MONGODB_URI to your Atlas string
-```
 
-## 3. Install the Vercel CLI and deploy
-```bash
-npm install -g vercel@34.3.0
-vercel login
-```
-
-## 4. Link and deploy (3 commands)
-```bash
-vercel link
-vercel env add MONGODB_URI production   # paste your Atlas URI when prompted
-vercel --prod
-```
-
-That's it — Vercel builds the client (`npm run build`) and deploys `api/index.js`
-as a serverless function, routed via `vercel.json`.
-
-## 5. (Optional) Enable auto-deploy from GitHub Actions
-1. In your Vercel project settings, grab: **Project ID**, **Org ID**, and create a **Vercel Token** (Account Settings → Tokens).
-2. Add them as GitHub repo secrets:
-   - `VERCEL_TOKEN`
-   - `VERCEL_ORG_ID`
-   - `VERCEL_PROJECT_ID`
-3. Push to `main` — the workflow in `.github/workflows/deploy.yml` builds, tests, and deploys automatically.
-
-## Verify it worked
-```bash
-curl https://<your-app>.vercel.app/api/health
-# Expect: {"status":"ok","db":"connected",...}
-```
-
-## Local development with Docker (alternative, non-Vercel)
-```bash
+# 2. Build and run with Docker Compose (includes local MongoDB)
 docker compose up --build
-curl http://localhost:5000/api/health
+
+# 3. Verify health check
+curl http://localhost:10000/api/health
+```
+
+## Verifying Production Deploy
+
+```bash
+curl https://<your-service-name>.onrender.com/api/health
+```
+
+You should get a `200 OK` response. If it fails, check Render's **Logs** tab for the service.
+
+## Important Notes
+
+- Ensure `server/index.js` exposes a `GET /api/health` route returning `200` — required for health checks in both Docker and Render.
+- If your client uses client-side routing, ensure the server has a catch-all route serving `client/dist/index.html`.
+- Update `CLIENT_ORIGIN` after first deploy to match your live Render URL to avoid CORS errors.
