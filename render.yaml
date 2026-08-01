@@ -1,28 +1,21 @@
 services:
   - type: web
     name: yt-app
-    runtime: docker
+    runtime: node
     plan: starter
     region: oregon
-    dockerfilePath: ./Dockerfile
-    dockerContext: .
-    healthCheckPath: /api/health
+    branch: main
+    buildCommand: npm ci && npm run build
+    startCommand: node server/index.js
+    healthCheckPath: /health
     autoDeploy: true
     envVars:
       - key: NODE_ENV
         value: production
       - key: PORT
-        value: 3000
+        value: 10000
       - key: MONGO_URI
         sync: false
-      - key: CORS_ORIGIN
+      - key: CLIENT_ORIGIN
         sync: false
-    # If you prefer Render's managed Postgres/Mongo alternative, use an external
-    # MongoDB Atlas cluster and paste its connection string as MONGO_URI in the dashboard.
-
-# Optional: Render-managed Redis (uncomment if the app needs caching/queues)
-# services:
-#   - type: redis
-#     name: yt-redis
-#     plan: starter
-#     ipAllowList: []
+    numInstances: 1

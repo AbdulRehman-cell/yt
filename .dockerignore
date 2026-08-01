@@ -1,19 +1,40 @@
+# Dependencies
 node_modules
 client/node_modules
+server/node_modules
+npm-debug.log
+
+# Build output (rebuilt in image)
 client/dist
 client/build
-npm-debug.log
-.git
-.gitignore
-.github
+
+# Env / secrets
 .env
 .env.*
 !.env.example
+
+# Git
+.git
+.gitignore
+
+# CI/CD
+.github
+
+# Docs
+README.md
+DEPLOY.md
 *.md
-Dockerfile
-docker-compose.yml
+
+# OS/editor
+.DS_Store
 .vscode
 .idea
-coverage
-.DS_Store
-Thumbs.db
+
+# Docker
+docker-compose.yml
+Dockerfile
+.dockerignore
+
+# Logs
+*.log
+logs
