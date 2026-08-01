@@ -53,6 +53,18 @@ app.get('/api/health', (req, res) => {
 // ---- Mount your existing routes here ----
 // Example: app.use('/api/videos', require('./routes/videos'));
 
+// Serve the built React client (Docker deploy). API 404s stay JSON; any
+// non-/api/ path falls back to the SPA's index.html.
+const path = require('path');
+const fs = require('fs');
+const distDir = path.join(__dirname, '..', 'client', 'dist');
+if (fs.existsSync(distDir)) {
+  app.use(express.static(distDir));
+  app.get(/^\/(?!api\/).*/, (req, res) => {
+    res.sendFile(path.join(distDir, 'index.html'));
+  });
+}
+
 app.use((req, res) => {
   res.status(404).json({ error: 'Not found' });
 });
