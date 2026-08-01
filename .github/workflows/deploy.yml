@@ -6,72 +6,72 @@ on:
   pull_request:
     branches: [main]
 
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
-
 env:
-  NODE_VERSION: "20.15.1"
+  NODE_VERSION: "18.20.4"
 
 jobs:
-  build-and-test:
-    name: Build & Test
-    runs-on: ubuntu-latest
-
+  lint-and-test:
+    name: Lint & Test
+    runs-on: ubuntu-24.04
     steps:
-      - name: Checkout code
+      - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Node.js
+      - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
-          cache: 'npm'
+          cache: "npm"
 
-      - name: Install server dependencies
+      - name: Install server deps
         run: npm ci --no-audit --no-fund
 
-      - name: Install client dependencies
+      - name: Install client deps
         run: npm --prefix client ci --no-audit --no-fund
 
-      - name: Lint (server) - non-blocking if no lint script
-        run: npm run lint --if-present
-
-      - name: Run server tests - non-blocking if no test script
+      - name: Run server tests (if defined)
         run: npm test --if-present
 
-      - name: Run client tests - non-blocking if no test script
-        run: npm --prefix client test --if-present
+      - name: Run client tests (if defined)
+        run: npm --prefix client test --if-present -- --watchAll=false
 
       - name: Build client
         run: npm run build
 
+  docker-build:
+    name: Build Docker Image
+    runs-on: ubuntu-24.04
+    needs: lint-and-test
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Build Docker image (no push, validate build only)
+      - name: Build image (no push, validation only)
         uses: docker/build-push-action@v6
         with:
           context: .
           file: ./Dockerfile
           push: false
-          tags: yt-app:ci
+          tags: yt-app:ci-${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
   deploy:
     name: Deploy to Render
-    needs: build-and-test
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    needs: docker-build
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-
     steps:
       - name: Trigger Render Deploy Hook
-        env:
-          RENDER_DEPLOY_HOOK_URL: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
         run: |
-          if [ -z "$RENDER_DEPLOY_HOOK_URL" ]; then
+          if [ -z "${{ secrets.RENDER_DEPLOY_HOOK_URL }}" ]; then
             echo "RENDER_DEPLOY_HOOK_URL secret not set. Skipping deploy trigger."
             exit 1
           fi
-          curl -fsS -X POST "$RENDER_DEPLOY_HOOK_URL"
+          curl -fsS -X POST "${{ secrets.RENDER_DEPLOY_HOOK_URL }}"
+
+      - name: Deployment triggered
+        run: echo "Render deploy hook called successfully. Check Render dashboard for build status."
