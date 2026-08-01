@@ -1,41 +1,23 @@
-# Dependencies
 node_modules
 client/node_modules
-server/node_modules
-api/node_modules
-npm-debug.log*
-
-# Build output
 client/dist
 client/build
-
-# Env / secrets
+server/node_modules
+api/node_modules
+npm-debug.log
+.git
+.gitignore
+.github
 .env
 .env.*
 !.env.example
-
-# Git
-.git
-.gitignore
-
-# Docs
-README.md
-DEPLOY.md
 *.md
-
-# CI/CD
-.github
-
-# Editor/OS
+!DEPLOY.md
+docker-compose.yml
+Dockerfile
+.dockerignore
 .vscode
 .idea
-.DS_Store
-
-# Test/coverage
 coverage
-.nyc_output
-
-# Docker
-Dockerfile
-docker-compose.yml
-.dockerignore
+*.log
+.DS_Store

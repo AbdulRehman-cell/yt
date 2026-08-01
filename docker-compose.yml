@@ -1,18 +1,36 @@
 services:
+  mongo:
+    image: mongo:7.0.12
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_ROOT_USER:-root}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD:?set MONGO_ROOT_PASSWORD in .env}
+      MONGO_INITDB_DATABASE: ${MONGO_DB_NAME:-yt}
+    volumes:
+      - mongo_data:/data/db
+    ports:
+      - "27017:27017"
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - yt_net
+
   app:
     build:
       context: .
       dockerfile: Dockerfile
-    image: yt-app:1.0.0
-    container_name: yt-app
     restart: unless-stopped
-    ports:
-      - "10000:10000"
     environment:
       NODE_ENV: production
       PORT: 10000
-      MONGO_URI: mongodb://mongo:27017/yt
-      CLIENT_ORIGIN: http://localhost:10000
+      MONGO_URI: mongodb://${MONGO_ROOT_USER:-root}:${MONGO_ROOT_PASSWORD:?set MONGO_ROOT_PASSWORD in .env}@mongo:27017/${MONGO_DB_NAME:-yt}?authSource=admin
+      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:10000}
+    ports:
+      - "10000:10000"
     depends_on:
       mongo:
         condition: service_healthy
@@ -23,28 +41,11 @@ services:
       retries: 3
       start_period: 15s
     networks:
-      - yt-net
-
-  mongo:
-    image: mongo:7.0.12
-    container_name: yt-mongo
-    restart: unless-stopped
-    environment:
-      MONGO_INITDB_DATABASE: yt
-    volumes:
-      - mongo-data:/data/db
-    healthcheck:
-      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 10s
-    networks:
-      - yt-net
+      - yt_net
 
 volumes:
-  mongo-data:
+  mongo_data:
 
 networks:
-  yt-net:
+  yt_net:
     driver: bridge

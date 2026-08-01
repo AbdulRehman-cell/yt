@@ -2,26 +2,30 @@ services:
   - type: web
     name: yt-app
     runtime: docker
-    dockerfilePath: ./Dockerfile
-    dockerContext: .
     plan: starter
     region: oregon
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
     healthCheckPath: /api/health
     autoDeploy: true
+    numInstances: 1
     envVars:
       - key: NODE_ENV
         value: production
       - key: PORT
-        value: 10000
+        value: "10000"
       - key: MONGO_URI
-        sync: false
-      - key: CLIENT_ORIGIN
-        sync: false
+        sync: false        # set manually in Render dashboard or link to a Render MongoDB/Atlas instance
+      - key: CORS_ORIGIN
+        sync: false        # e.g. https://your-app.onrender.com
       - key: JWT_SECRET
         generateValue: true
+    disk:
+      name: yt-tmp
+      mountPath: /app/tmp
+      sizeGB: 1
 
-databases:
-  - name: yt-mongo
-    plan: starter
-    databaseName: yt
-    ipAllowList: []
+# Optional: Render-managed Postgres/Redis are not used here since the app uses MongoDB.
+# If you want to use Render's native database instead of MongoDB Atlas / self-hosted,
+# provision Mongo separately (Render does not offer managed MongoDB) — use MongoDB Atlas free tier
+# and paste the connection string into MONGO_URI above.
