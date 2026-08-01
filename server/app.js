@@ -50,8 +50,25 @@ app.get('/api/health', (req, res) => {
   });
 });
 
-// ---- Mount your existing routes here ----
-// Example: app.use('/api/videos', require('./routes/videos'));
+// ---- Auto-mount every routes file in ./routes/*.routes.js ----
+// message.routes.js → /api/messages, user.routes.js → /api/users, etc.
+const _fs = require('fs');
+const _path = require('path');
+const _routesDir = _path.join(__dirname, 'routes');
+if (_fs.existsSync(_routesDir)) {
+  for (const f of _fs.readdirSync(_routesDir)) {
+    const m = f.match(/^(.+)\.routes\.js$/);
+    if (!m) continue;
+    const model = m[1].toLowerCase();
+    const mountPath = `/api/${model.endsWith('s') ? model : model + 's'}`;
+    try {
+      app.use(mountPath, require(`./routes/${f}`));
+      console.log(`Mounted ${mountPath} → ${f}`);
+    } catch (err) {
+      console.error(`Failed to mount ${f}:`, err.message);
+    }
+  }
+}
 
 // Serve the built React client (Docker deploy). API 404s stay JSON; any
 // non-/api/ path falls back to the SPA's index.html.
